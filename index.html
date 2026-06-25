@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>單人闖關射擊遊戲 MVP 互動驗證原型</title>
+    <!-- Tailwind CSS for modern layout -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+        .pixel-border {
+            border: 2px solid #334155;
+        }
+        .game-canvas {
+            background: linear-gradient(180deg, #1e1b4b 0%, #311042 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        .health-bar-fill {
+            transition: width 0.2s ease-out;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- TOP HEADER -->
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex justify-between items-center shrink-0">
+        <div class="flex items-center space-x-3">
+            <span class="text-2xl">🎮</span>
+            <div>
+                <h1 class="text-lg font-bold text-amber-400 tracking-wide">單人闖關射擊遊戲 MVP 驗證系統</h1>
+                <p class="text-xs text-slate-400">核心玩法驗證、教學引導、5張核心資料表與7個關鍵API模擬</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <button onclick="restartTutorial()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-3 py-1.5 rounded transition flex items-center gap-1">
+                <i class="fas fa-life-ring"></i> 重啟教學引導
+            </button>
+            <span class="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-full border border-slate-700">精簡高效・快速開發</span>
+        </div>
+    </header>
+
+    <!-- MAIN BODY SECTION -->
+    <div class="flex flex-1 overflow-hidden">
+        
+        <!-- LEFT PANEL: INTERACTIVE GAME PLAYGROUND -->
+        <main class="w-2/3 flex flex-col p-4 border-r border-slate-800 bg-slate-950/50 overflow-y-auto">
+            
+            <!-- STEP 1: AUTH SCREEN -->
+            <div id="screen-auth" class="flex-1 flex flex-col items-center justify-center max-w-md mx-auto w-full my-auto py-12">
+                <div class="bg-slate-900 p-8 rounded-xl border border-slate-800 shadow-2xl w-full relative">
+                    <div class="absolute -top-3 -left-3 bg-amber-500 text-slate-950 text-xs font-bold px-2 py-0.5 rounded shadow">
+                        步驟 1 / 6
+                    </div>
+                    <div class="text-center mb-6">
+                        <i class="fas fa-user-shield text-4xl text-indigo-400 mb-2"></i>
+                        <h2 class="text-xl font-bold text-slate-100">玩家註冊與登入系統</h2>
+                        <p class="text-xs text-slate-400 mt-1">對應 API: <span class="font-mono text-indigo-300">/api/auth/register</span> & <span class="font-mono text-indigo-300">/api/auth/login</span></p>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">玩家帳號 (username)</label>
+                            <input type="text" id="auth-username" value="player1" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">密碼 (password)</label>
+                            <input type="password" id="auth-password" value="******" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                        
+                        <div class="pt-2 flex gap-3">
+                            <button onclick="handleAuth('register')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold py-2.5 rounded transition border border-slate-600">
+                                註冊新帳號
+                            </button>
+                            <button id="btn-login-trigger" onclick="handleAuth('login')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold py-2.5 rounded transition shadow-lg shadow-indigo-600/20 relative">
+                                玩家登入
+                                <span class="animate-ping absolute right-2 top-2 h-2 w-2 rounded-full bg-amber-400"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 2: LOBBY / STAGE SELECTION & WEAPON UPGRADE -->
+            <div id="screen-lobby" class="hidden flex-col gap-6">
+                <!-- Player Status Ribbon -->
+                <div class="bg-slate-900 rounded-xl p-4 border border-slate-800 flex justify-between items-center shadow-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="h-10 w-10 rounded-full bg-indigo-600/20 border border-indigo-500 flex items-center justify-center text-indigo-400">
+                            <i class="fas fa-user-ninja"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span id="player-display-name" class="font-bold text-slate-200">player1</span>
+                                <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">ID: 1</span>
+                            </div>
+                            <p class="text-xs text-slate-400">核心數據已成功經由 <span class="font-mono text-indigo-300">/api/player</span> 載入</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-6 items-center">
+                        <div class="text-right">
+                            <span class="text-xs text-slate-400 block">擁有金幣 (gold)</span>
+                            <span class="text-lg font-black text-amber-400 flex items-center justify-end gap-1">
+                                <i class="fas fa-coins text-amber-500 text-sm"></i> <span id="player-gold">1500</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Content Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Weapons Armory Panel -->
+                    <div id="panel-weapons" class="bg-slate-900 rounded-xl p-5 border border-slate-800 flex flex-col relative">
+                        <div class="absolute -top-3 -left-3 bg-amber-500 text-slate-950 text-xs font-bold px-2 py-0.5 rounded shadow">
+                            步驟 5 / 6 (可選)
+                        </div>
+                        <div class="mb-4">
+                            <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                                <i class="fas fa-crosshairs text-emerald-400"></i> 武器裝備在庫系統
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-0.5">點擊升級按鈕將觸發 <span class="font-mono text-indigo-300">/api/weapons/upgrade</span></p>
+                        </div>
+                        
+                        <!-- Weapon Grid Layout -->
+                        <div class="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[360px]" id="weapon-list-container">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Stage Exploration Selector -->
+                    <div id="panel-stages" class="bg-slate-900 rounded-xl p-5 border border-slate-800 flex flex-col relative">
+                        <div class="absolute -top-3 -left-3 bg-amber-500 text-slate-950 text-xs font-bold px-2 py-0.5 rounded shadow">
+                            步驟 2 / 6
+                        </div>
+                        <div class="mb-4">
+                            <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                                <i class="fas fa-map-marked-alt text-amber-400"></i> 戰役關卡選擇器
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-0.5">資料源自關卡表，並對比目前進度表 (star) 狀態</p>
+                        </div>
+
+                        <!-- Stage Row Container -->
+                        <div class="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[360px]" id="stage-list-container">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 3 & 4: LIVE BATTLEFIELD -->
+            <div id="screen-battle" class="hidden flex-col gap-4 flex-1">
+                <div class="bg-slate-900 rounded-xl p-3 border border-slate-800 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded border border-rose-500/30 font-bold">戰場即時狀態</span>
+                        <h3 id="battle-stage-title" class="font-bold text-slate-200">關卡 1: 森林戰區</h3>
+                    </div>
+                    <div class="flex gap-4 items-center">
+                        <div class="text-xs text-slate-400">
+                            配備武器: <span id="battle-weapon-name" class="font-bold text-emerald-400">突擊步槍</span> (Lv.<span id="battle-weapon-level">1</span>)
+                        </div>
+                        <button onclick="quitBattle()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded transition border border-slate-700">
+                            撤退回大廳
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Interactive Battle Arena Screen View -->
+                <div class="game-canvas rounded-xl flex-1 min-h-[300px] flex flex-col justify-between p-6 relative select-none">
+                    
+                    <!-- Top Enemy Status Track -->
+                    <div class="w-full max-w-md mx-auto space-y-2 relative z-10">
+                        <div class="flex justify-between items-end text-xs">
+                            <span class="font-bold text-rose-400 flex items-center gap-1">
+                                <i class="fas fa-skull-crossbones"></i> <span id="enemy-name-display">哥布林王 (BOSS)</span>
+                            </span>
+                            <span class="font-mono text-slate-300" id="enemy-hp-text">5000 / 5000</span>
+                        </div>
+                        <div class="w-full bg-slate-950 h-3.5 rounded-full p-0.5 border border-slate-800/80 shadow-inner">
+                            <div id="enemy-hp-bar" class="health-bar-fill h-full bg-gradient-to-r from-rose-600 to-amber-500 rounded-full" style="width: 100%;"></div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span id="enemy-phase-badge" class="text-[10px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.2 rounded uppercase">當前進度: 普通小怪</span>
+                            <span class="text-[10px] text-slate-400" id="battle-instruction-tip">💡 點擊下方靶心區域即可對敵人發起射擊攻擊！</span>
+                        </div>
+                    </div>
+
+                    <!-- Middle Battle Visual Simulation Section -->
+                    <div class="flex-1 flex items-center justify-center relative">
+                        <!-- Floating damage text space -->
+                        <div id="damage-container" class="absolute inset-0 pointer-events-none flex items-center justify-center"></div>
+                        
+                        <!-- Enemy Simulated Graphical Node -->
+                        <div id="enemy-sprite-node" class="text-center transform transition-all duration-100 cursor-pointer" onclick="fireActiveWeapon()">
+                            <div class="text-6xl mb-2 drop-shadow-[0_0_25px_rgba(239,68,68,0.5)]" id="enemy-emoji">👹</div>
+                            <div class="text-[10px] bg-slate-950/80 text-slate-300 px-2 py-0.5 rounded-full border border-slate-800 inline-block">
+                                點擊怪物直接開火
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Player Action Board -->
+                    <div class="w-full bg-slate-950/90 border border-slate-800 rounded-xl p-4 shadow-xl z-10 flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="text-4xl">🧑‍🚀</div>
+                            <div>
+                                <div class="text-xs text-slate-400">目前累積戰果</div>
+                                <div class="text-sm font-bold text-slate-200">
+                                    擊殺進度: <span id="battle-kills-tracker" class="text-amber-400">0</span> / 3 隻小怪
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BIG INTERACTIVE FIRE BUTTON -->
+                        <div class="flex items-center gap-3">
+                            <button id="btn-fire-weapon" onclick="fireActiveWeapon()" class="bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-black text-base px-8 py-3 rounded-xl shadow-lg transition transform active:scale-95 flex items-center gap-2 relative">
+                                <i class="fas fa-crosshairs animate-spin-slow"></i> 擊發武器攻擊
+                                <span class="absolute -top-2 -right-2 bg-amber-400 text-slate-950 text-[10px] px-1 rounded-full font-bold animate-bounce">TAP!</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 5: MISSION SETTLEMENT MODAL OVERLAY -->
+            <div id="modal-settlement" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-slate-900 border-2 border-amber-500/50 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                    <div class="absolute -top-3 -left-3 bg-amber-500 text-slate-950 text-xs font-bold px-2 py-0.5 rounded shadow">
+                        步驟 3 / 6 (結算)
+                    </div>
+                    <div class="text-center mb-6">
+                        <span class="text-5xl block mb-2">🏆</span>
+                        <h2 class="text-2xl font-black text-amber-400 tracking-wide">戰役通關成功！</h2>
+                        <p class="text-xs text-slate-400 mt-1">關卡數據結算與獎勵發放作業</p>
+                    </div>
+
+                    <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3 mb-6">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-400">挑戰關卡</span>
+                            <span id="settle-stage-name" class="font-bold text-slate-200">-</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-slate-400">評分星級 (star)</span>
+                            <div class="text-amber-400 flex gap-1 text-base" id="settle-stars-row">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-400">最佳通關時間 (best_time)</span>
+                            <span class="font-mono font-bold text-emerald-400"><span id="settle-time-val">45</span> 秒</span>
+                        </div>
+                        <div class="border-t border-slate-800 my-2 pt-2 flex justify-between text-sm">
+                            <span class="text-slate-400 font-medium">獲取金幣獎勵 (gold)</span>
+                            <span class="font-bold text-amber-400">+ <span id="settle-gold-reward">300</span> Gold</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-indigo-950/40 border border-indigo-800/40 rounded-lg p-3 mb-6 text-xs text-indigo-300">
+                        <i class="fas fa-cloud-upload-alt mr-1"></i> 點擊下方存檔按鈕將同時調用下游 API 端點 <span class="font-mono text-white bg-slate-950 px-1 py-0.5 rounded">/api/progress/save</span>，更新進度表。
+                    </div>
+
+                    <button id="btn-save-progress" onclick="saveSettlementProgress()" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-3 rounded-xl transition shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2">
+                        <i class="fas fa-save"></i> 儲存進度並返回大廳
+                    </button>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- RIGHT PANEL: TECHNICAL DATA INSPECTOR & INSTRUCTION ENGINE -->
+        <aside class="w-1/3 flex flex-col bg-slate-900 border-l border-slate-800 h-full overflow-hidden">
+            
+            <!-- GUIDE ENGINE AREA -->
+            <div id="tutorial-card" class="bg-slate-950 border-b border-slate-800 p-4 shrink-0 transition-all duration-300">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex gap-2.5 items-start">
+                        <div class="h-6 w-6 rounded-full bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs shrink-0 mt-0.5" id="step-num-badge">
+                            1
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-amber-400" id="step-title">步驟引導正在初始化...</h4>
+                            <p class="text-xs text-slate-300 mt-1 leading-relaxed" id="step-desc">請稍候...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 flex justify-between items-center border-t border-slate-900 pt-3">
+                    <span class="text-[10px] text-slate-500" id="step-progress-text">進度: 1 / 6</span>
+                    <div class="flex gap-2">
+                        <button id="btn-prev-step" onclick="navigateStep(-1)" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-2 py-1 rounded transition disabled:opacity-30" disabled>
+                            上一步
+                        </button>
+                        <button id="btn-next-step" onclick="navigateStep(1)" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2.5 py-1 rounded transition">
+                            下一步
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RELATIONAL DATABASE SHADOW INSPECTOR -->
+            <div class="flex-1 flex flex-col p-4 overflow-hidden">
+                <div class="flex items-center justify-between mb-3 shrink-0">
+                    <h3 class="font-bold text-xs text-slate-400 tracking-wider uppercase flex items-center gap-2">
+                        <i class="fas fa-database text-indigo-400"></i> MVP 資料庫與 API 映射觀測器
+                    </h3>
+                    <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded">即時響應</span>
+                </div>
+
+                <!-- Tabs to view specific relational tables -->
+                <div class="flex border-b border-slate-800 text-[11px] font-medium gap-1 shrink-0 overflow-x-auto pb-1">
+                    <button id="tab-btn-users" onclick="switchDbTab('users')" class="px-2.5 py-1.5 rounded-t text-slate-400 hover:text-slate-200 border-b-2 border-transparent [&.active]:border-amber-400 [&.active]:text-amber-400 [&.active]:bg-slate-950/40 active">users 玩家表</button>
+                    <button id="tab-btn-weapons" onclick="switchDbTab('weapons')" class="px-2.5 py-1.5 rounded-t text-slate-400 hover:text-slate-200 border-b-2 border-transparent [&.active]:border-amber-400 [&.active]:text-amber-400 [&.active]:bg-slate-950/40">weapons 武器表</button>
+                    <button id="tab-btn-stages" onclick="switchDbTab('stages')" class="px-2.5 py-1.5 rounded-t text-slate-400 hover:text-slate-200 border-b-2 border-transparent [&.active]:border-amber-400 [&.active]:text-amber-400 [&.active]:bg-slate-950/40">stages 關卡表</button>
+                    <button id="tab-btn-monsters" onclick="switchDbTab('monsters')" class="px-2.5 py-1.5 rounded-t text-slate-400 hover:text-slate-200 border-b-2 border-transparent [&.active]:border-amber-400 [&.active]:text-amber-400 [&.active]:bg-slate-950/40">monsters 怪物表</button>
+                    <button id="tab-btn-progress" onclick="switchDbTab('progress')" class="px-2.5 py-1.5 rounded-t text-slate-400 hover:text-slate-200 border-b-2 border-transparent [&.active]:border-amber-400 [&.active]:text-amber-400 [&.active]:bg-slate-950/40">progress 進度表</button>
+                </div>
+
+                <!-- Database View Area -->
+                <div class="flex-1 bg-slate-950 border border-slate-800 rounded-xl mt-3 p-3 overflow-y-auto font-mono text-xs">
+                    <div id="db-table-view-container">
+                        <!-- Table content injected dynamically -->
+                    </div>
+                </div>
+
+                <!-- API Network Log Feed Stream -->
+                <div class="h-1/3 min-h-[120px] border-t border-slate-800 pt-3 mt-3 flex flex-col overflow-hidden">
+                    <div class="flex justify-between items-center mb-1.5 shrink-0">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            <i class="fas fa-exchange-alt text-amber-500 mr-1"></i> API 請求日誌紀錄器
+                        </span>
+                        <button onclick="clearApiLogs()" class="text-[9px] text-slate-500 hover:text-slate-300">清除紀錄</button>
+                    </div>
+                    <div id="api-log-container" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 overflow-y-auto space-y-1.5 text-[10px] font-mono">
+                        <!-- Log messages injected here -->
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+    </div>
+
+    <!-- MAIN CORE LOGIC ENGINE (JAVASCRIPT) -->
+    <script>
+        // ----------------------------------------------------
+        // MOCK DATABASE DATA LAYER (Initialized from image specs)
+        // ----------------------------------------------------
+        let db = {
+            users: [
+                { id: 1, username: 'player1', password: '•' + '•' + '•' + '•' + '•' + '•', gold: 1500, created_at: '2026-06-25 10:00:00' }
+            ],
+            weapons: [
+                { id: 1, user_id: 1, weapon_type: 'PISTOL', level: 1, damage: 20, fire_rate: 1.00, magazine_size: 12, name: '手槍' },
+                { id: 2, user_id: 1, weapon_type: 'RIFLE', level: 2, damage: 40, fire_rate: 0.35, magazine_size: 30, name: '突擊步槍' },
+                { id: 3, user_id: 1, weapon_type: 'SHOTGUN', level: 1, damage: 60, fire_rate: 0.80, magazine_size: 8, name: '散彈槍' },
+                { id: 4, user_id: 1, weapon_type: 'SNIPER', level: 1, damage: 80, fire_rate: 0.60, magazine_size: 5, name: '狙擊槍' }
+            ],
+            stages: [
+                { id: 1, stage_no: 1, stage_name: '森林戰區', description: '初始森林地帶', difficulty: 1, boss_id: 1 },
+                { id: 2, stage_no: 2, stage_name: '沙漠墓區', description: '機械巨獸領地', difficulty: 2, boss_id: 2 },
+                { id: 3, stage_no: 3, stage_name: '雪地要塞', description: '冰霜魔王據點', difficulty: 3, boss_id: 3 },
+                { id: 4, stage_no: 4, stage_name: '火山地獄', description: '炎龍巢穴深處', difficulty: 4, boss_id: 4 },
+                { id: 5, stage_no: 5, stage_name: '終極基地', description: '魔神終極核心', difficulty: 5, boss_id: 5 }
+            ],
+            monsters: [
+                { id: 1, monster_type: 'BOSS', name: '哥布林王', hp: 500, damage: 120, description: '森林戰區 BOSS', img_url: 'goblin_king.png', emoji: '👹' },
+                { id: 2, monster_type: 'BOSS', name: '機械巨獸', hp: 1200, damage: 250, description: '沙漠墓區 BOSS', img_url: 'mech_titan.png', emoji: '🤖' },
+                { id: 3, monster_type: 'BOSS', name: '冰霜魔王', hp: 3000, damage: 400, description: '雪地要塞 BOSS', img_url: 'frost_lord.png', emoji: '🥶' },
+                { id: 4, monster_type: 'BOSS', name: '炎龍', hp: 6000, damage: 600, description: '火山地獄 BOSS', img_url: 'fire_dragon.png', emoji: '🐉' },
+                { id: 5, monster_type: 'BOSS', name: '魔神', hp: 12000, damage: 1000, description: '終極基地 BOSS', img_url: 'demon_god.png', emoji: '😈' }
+            ],
+            game_progress: [
+                { id: 1, user_id: 1, stage_id: 1, cleared: 1, star: 3, best_time: 125, last_played: '2026-06-25 12:00:00' },
+                { id: 2, user_id: 1, stage_id: 2, cleared: 1, star: 2, best_time: 180, last_played: '2026-06-25 14:15:22' },
+                { id: 3, user_id: 1, stage_id: 3, cleared: 0, star: 0, best_time: 0, last_played: '2026-06-25 15:30:00' },
+                { id: 4, user_id: 1, stage_id: 4, cleared: 0, star: 0, best_time: 0, last_played: '2026-06-25 15:30:00' },
+                { id: 5, user_id: 1, stage_id: 5, cleared: 0, star: 0, best_time: 0, last_played: '2026-06-25 15:30:00' }
+            ]
+        };
+
+        // ----------------------------------------------------
+        // SYSTEM RUNTIME STATE VARS
+        // ----------------------------------------------------
+        let currentUser = null;
+        let currentActiveWeaponId = 2; // Default to Rifle
+        let currentActiveStage = null;
+        let activeDbTab = 'users';
+        let currentStep = 1;
+        
+        // Battle State Tracker
+        let battleState = {
+            stage: null,
+            bossMonster: null,
+            currentEnemyMaxHp: 0,
+            currentEnemyHp: 0,
+            killsCount: 0,
+            requiredKills: 3,
+            isBossPhase: false,
+            startTime: null
+        };
+
+        // ----------------------------------------------------
+        // TUTORIAL ENGINE TIMELINE STEPS
+        // ----------------------------------------------------
+        const tutorialSteps = [
+            {
+                step: 1,
+                title: "第一步：安全的身分登入驗證",
+                desc: "在 MVP 架構中，系統必須識別玩家是誰。請點擊左側的<b>【玩家登入】</b>按鈕。這會調用後端系統的 <span class='font-mono bg-slate-900 text-rose-400 px-1 rounded'>/api/auth/login</span> 端點，成功後會載入對應的資料庫 <span class='font-mono text-cyan-400'>users</span> 表資料。",
+                anchor: "screen-auth"
+            },
+            {
+                step: 2,
+                title: "第二步：關卡狀態與進度關聯導覽",
+                desc: "登入成功後，玩家將進到主大廳。請觀察<b>【戰役關卡選擇器】</b>。此處的資料是結合了 <span class='font-mono text-cyan-400'>stages</span> 基礎配置表以及 <span class='font-mono text-cyan-400'>game_progress</span> 的多對多關聯數據。點擊任意解鎖關卡之<b>【進入戰區】</b>按鈕來開始核心射擊戰鬥驗證。",
+                anchor: "panel-stages"
+            },
+            {
+                step: 3,
+                title: "第三步：即時戰鬥核心與核心玩法",
+                desc: "您已正式進入即時戰役場景！在這裡，您可以點擊中央的怪物或者底部的<b>【擊發武器攻擊】</b>按鈕。武器的傷害數值直接讀取自玩家擁有的 <span class='font-mono text-cyan-400'>weapons</span> 欄位。玩家需要先消滅3隻隨機普通怪，方可驚動最終強大的 BOSS！",
+                anchor: "screen-battle"
+            },
+            {
+                step: 4,
+                title: "第四步：戰果結算與進度持久化更新",
+                desc: "擊敗強大的 BOSS 之後，系統將會彈出結算視窗！這展示了核心邏輯的結算機制：系統依據過關表現計算星級 (star)，並為玩家準備更新進度。當您點選<b>【儲存進度並返回大廳】</b>時，將立刻呼叫 <span class='font-mono bg-slate-900 text-rose-400 px-1 rounded'>/api/progress/save</span> 將過關歷程同步回寫入資料庫。",
+                anchor: "modal-settlement"
+            },
+            {
+                step: 5,
+                title: "第五步：武器裝備防務升級",
+                desc: "回歸大廳後，您通關所獎勵的金幣資產已存入。您可以移步到<b>【武器裝備在庫系統】</b>面板，挑選一把心儀的防務枪械，並點擊<b>【升級】</b>。此動作會發送請求到 <span class='font-mono bg-slate-900 text-rose-400 px-1 rounded'>/api/weapons/upgrade</span>，直接扣除金幣並提升武器損害度！",
+                anchor: "panel-weapons"
+            },
+            {
+                step: 6,
+                title: "第六步：完美完工與資料庫即時追蹤",
+                desc: "恭喜您完成了全套 MVP 核心循環鏈條的互動驗證！您可以在右方側邊欄的<b>【資料庫與 API 映射觀測器】</b>切換查閱5張實體資料表的數值變化（如金幣、升級等級及關卡最高記錄），這便是經典關卡制射擊遊戲的最核心資料精髓。",
+                anchor: "db-table-view-container"
+            }
+        ];
+
+        // Initialize App on window load
+        window.onload = function() {
+            renderDbTable();
+            updateTutorialUI();
+            logApi('SYSTEM', 'MVP Front-end Emulator Engine started successfully.', 'READY');
+        };
+
+        // ----------------------------------------------------
+        // CORE SERVICE FUNCTIONS (API SIMULATORS)
+        // ----------------------------------------------------
+        function logApi(method, endpoint, status, payload = '') {
+            const container = document.getElementById('api-log-container');
+            const time = new Date().toLocaleTimeString();
+            let statusColor = 'text-emerald-400';
+            if (status !== '200 OK' && status !== 'READY') statusColor = 'text-amber-400';
+            
+            let logHtml = `
+                <div class="border-b border-slate-900 pb-1 text-slate-400 leading-normal">
+                    <span class="text-slate-500">[${time}]</span> 
+                    <span class="bg-slate-800 text-slate-300 px-1 rounded font-bold">${method}</span> 
+                    <span class="text-indigo-300 font-medium">${endpoint}</span> -> 
+                    <span class="${statusColor} font-bold">${status}</span>
+            `;
+            if (payload) {
+                logHtml += `<div class="text-[9px] text-slate-500 mt-0.5 bg-slate-950 p-1 rounded overflow-x-auto">Payload: ${payload}</div>`;
+            }
+            logHtml += `</div>`;
+            
+            container.innerHTML = logHtml + container.innerHTML;
+        }
+
+        function clearApiLogs() {
+            document.getElementById('api-log-container').innerHTML = '<div class="text-slate-600 text-center py-4">日誌已清空</div>';
+        }
+
+        function handleAuth(mode) {
+            const user = db.users[0];
+            currentUser = user;
+            
+            logApi('POST', `/api/auth/${mode}`, '200 OK', JSON.stringify({ username: 'player1', psw: '******' }));
+            logApi('GET', '/api/player', '200 OK', 'Loading standard user profiles & items');
+
+            // Transition UI View screens
+            document.getElementById('screen-auth').classList.add('hidden');
+            document.getElementById('screen-lobby').classList.remove('hidden');
+            
+            // Sync player dashboard headers
+            document.getElementById('player-display-name').innerText = user.username;
+            document.getElementById('player-gold').innerText = user.gold;
+
+            // Render interactive modules
+            renderWeapons();
+            renderStages();
+            
+            // Advance tutorial step naturally
+            if (currentStep === 1) {
+                navigateStep(1);
+            }
+        }
+
+        function renderWeapons() {
+            const container = document.getElementById('weapon-list-container');
+            container.innerHTML = '';
+
+            db.weapons.forEach(w => {
+                const isActive = w.id === currentActiveWeaponId;
+                const cost = w.level * 250;
+                
+                container.innerHTML += `
+                    <div class="p-3 rounded-lg border ${isActive ? 'border-indigo-500 bg-indigo-950/20' : 'border-slate-800 bg-slate-950/40'} flex justify-between items-center transition hover:border-slate-700">
+                        <div class="flex items-center gap-2.5">
+                            <input type="radio" name="active-weapon" id="wp-radio-${w.id}" ${isActive ? 'checked' : ''} onchange="setActiveWeapon(${w.id})" class="accent-indigo-500 h-3.5 w-3.5 cursor-pointer">
+                            <div>
+                                <label for="wp-radio-${w.id}" class="font-bold text-xs text-slate-200 cursor-pointer flex items-center gap-1.5">
+                                    ${w.name} <span class="text-[10px] bg-slate-800 text-indigo-400 px-1 rounded">Lv.${w.level}</span>
+                                </label>
+                                <div class="text-[10px] text-slate-400 mt-0.5 space-x-2">
+                                    <span>💥 傷害: <strong class="text-slate-200">${w.damage}</strong></span>
+                                    <span>⏱️ 射速: <strong class="text-slate-200">${w.fire_rate}s</strong></span>
+                                    <span>🔋 彈匣: <strong class="text-slate-200">${w.magazine_size}</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="upgradeWeapon(${w.id})" class="text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded transition flex flex-col items-center shrink-0 min-w-[65px]">
+                            <span>🔺 升級</span>
+                            <span class="text-[9px] text-emerald-200 font-medium">${cost} 金幣</span>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+
+        function setActiveWeapon(id) {
+            currentActiveWeaponId = id;
+            renderWeapons();
+            logApi('SELECT', `Equipped Weapon ID: ${id}`, 'CLIENT_UI');
+        }
+
+        function upgradeWeapon(id) {
+            const weapon = db.weapons.find(w => w.id === id);
+            const cost = weapon.level * 250;
+            const player = db.users[0];
+
+            if (player.gold < cost) {
+                alert("金幣餘額不足，無法進行武器組件升級！請先前往戰役關卡刷怪賺取金幣。");
+                logApi('POST', '/api/weapons/upgrade', '400 Bad Request', `Insufficient funds. Cost: ${cost}, Available: ${player.gold}`);
+                return;
+            }
+
+            // Execute transaction
+            player.gold -= cost;
+            weapon.level += 1;
+            weapon.damage += Math.round(weapon.damage * 0.25); // increment damage by 25%
+            
+            document.getElementById('player-gold').innerText = player.gold;
+            
+            logApi('POST', '/api/weapons/upgrade', '200 OK', JSON.stringify({ weapon_id: id, new_level: weapon.level, remaining_gold: player.gold }));
+            
+            renderWeapons();
+            renderDbTable();
+
+            if (currentStep === 5) {
+                navigateStep(1);
+            }
+        }
+
+        function renderStages() {
+            const container = document.getElementById('stage-list-container');
+            container.innerHTML = '';
+
+            db.stages.forEach((stg, index) => {
+                const progress = db.game_progress.find(p => p.stage_id === stg.id);
+                // Simple unlock rule: First stage or previous stage must be cleared
+                const isUnlocked = index === 0 || db.game_progress[index - 1].cleared === 1;
+                
+                let starHtml = '';
+                if (progress && progress.star > 0) {
+                    for(let i=0; i<3; i++) {
+                        starHtml += `<i class="fas fa-star ${i < progress.star ? 'text-amber-400' : 'text-slate-600'} text-[10px]"></i>`;
+                    }
+                } else {
+                    starHtml = '<span class="text-[10px] text-slate-500">尚未挑戰</span>';
+                }
+
+                container.innerHTML += `
+                    <div class="p-3 rounded-lg border ${isUnlocked ? 'border-slate-800 bg-slate-950/40' : 'border-slate-900 bg-slate-950/10 opacity-50'} flex justify-between items-center">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-slate-200">關卡 ${stg.stage_no}: ${stg.stage_name}</span>
+                                <div class="flex gap-0.5">${starHtml}</div>
+                            </div>
+                            <p class="text-[11px] text-slate-400">${stg.description} • 難度: ${'🔥'.repeat(stg.difficulty)}</p>
+                            ${progress && progress.best_time > 0 ? `<p class="text-[9px] text-slate-500">⏱️ 最佳通關紀錄: ${progress.best_time}秒</p>` : ''}
+                        </div>
+                        
+                        ${isUnlocked ? `
+                            <button onclick="startBattle(${stg.id})" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-2 rounded transition shadow shrink-0">
+                                進入戰區 <i class="fas fa-bolt ml-0.5"></i>
+                            </button>
+                        ` : `
+                            <span class="text-xs text-slate-600 border border-slate-800 px-2 py-1 rounded shrink-0">
+                                <i class="fas fa-lock mr-1"></i> 未解鎖
+                            </span>
+                        `}
+                    </div>
+                `;
+            });
+        }
+
+        // ----------------------------------------------------
+        // BATTLEFIELD ENGINES MECHANICS
+        // ----------------------------------------------------
+        function startBattle(stageId) {
+            const stage = db.stages.find(s => s.id === stageId);
+            const boss = db.monsters.find(m => m.id === stage.boss_id);
+            const activeWeapon = db.weapons.find(w => w.id === currentActiveWeaponId);
+
+            currentActiveStage = stage;
+            
+            // Populate Battle State
+            battleState.stage = stage;
+            battleState.bossMonster = boss;
+            battleState.killsCount = 0;
+            battleState.isBossPhase = false;
+            battleState.currentEnemyMaxHp = Math.round(boss.hp * 0.2); // generic small minion hp is 20% of boss
+            battleState.currentEnemyHp = battleState.currentEnemyMaxHp;
+            battleState.startTime = new Date();
+
+            // Set up UI components
+            document.getElementById('screen-lobby').map || document.getElementById('screen-lobby').classList.add('hidden');
+            document.getElementById('screen-battle').classList.remove('hidden');
+
+            document.getElementById('battle-stage-title').innerText = `關卡 ${stage.stage_no}: ${stage.stage_name}`;
+            document.getElementById('battle-weapon-name').innerText = activeWeapon.name;
+            document.getElementById('battle-weapon-level').innerText = activeWeapon.level;
+            
+            setupEnemyPhaseUI();
+            
+            logApi('GET', `/api/stages`, '200 OK', `Loaded active details for Stage: ${stage.stage_name}`);
+            
+            if (currentStep === 2) {
+                navigateStep(1);
+            }
+        }
+
+        function setupEnemyPhaseUI() {
+            const hpBar = document.getElementById('enemy-hp-bar');
+            const hpText = document.getElementById('enemy-hp-text');
+            const nameLabel = document.getElementById('enemy-name-display');
+            const phaseBadge = document.getElementById('enemy-phase-badge');
+            const killsTracker = document.getElementById('battle-kills-tracker');
+            const emojiNode = document.getElementById('enemy-emoji');
+
+            killsTracker.innerText = battleState.killsCount;
+
+            if (!battleState.isBossPhase) {
+                nameLabel.innerText = `${battleState.stage.stage_name} 前鋒守衛小怪 #${battleState.killsCount + 1}`;
+                phaseBadge.innerText = "當前進度: 普通小怪波次";
+                phaseBadge.className = "text-[10px] bg-slate-700 text-slate-100 font-bold px-1.5 py-0.5 rounded";
+                emojiNode.innerText = "👾";
+            } else {
+                nameLabel.innerText = `${battleState.bossMonster.name} (關卡魔王 BOSS)`;
+                phaseBadge.innerText = "💀 警告: 領主首領戰";
+                phaseBadge.className = "text-[10px] bg-rose-600 text-white font-black px-1.5 py-0.5 rounded animate-pulse";
+                emojiNode.innerText = battleState.bossMonster.emoji;
+            }
+
+            const hpPct = (battleState.currentEnemyHp / battleState.currentEnemyMaxHp) * 100;
+            hpBar.style.width = `${hpPct}%`;
+            hpText.innerText = `${battleState.currentEnemyHp} / ${battleState.currentEnemyMaxHp}`;
+        }
+
+        function fireActiveWeapon() {
+            const activeWeapon = db.weapons.find(w => w.id === currentActiveWeaponId);
+            const dmg = activeWeapon.damage;
+            
+            // Reduce Enemy HP
+            battleState.currentEnemyHp -= dmg;
+            if (battleState.currentEnemyHp < 0) battleState.currentEnemyHp = 0;
+
+            // Trigger visual hit scaling feedback
+            const enemySprite = document.getElementById('enemy-sprite-node');
+            enemySprite.classList.add('scale-90', 'brightness-125');
+            setTimeout(() => enemySprite.classList.remove('scale-90', 'brightness-125'), 80);
+
+            // Spawn floating floating damage indicator text numbers
+            spawnDamageText(dmg);
+            
+            // Check health rules
+            if (battleState.currentEnemyHp <= 0) {
+                handleEnemyDeath();
+            } else {
+                setupEnemyPhaseUI();
+            }
+        }
+
+        function spawnDamageText(dmg) {
+            const container = document.getElementById('damage-container');
+            const el = document.createElement('div');
+            el.className = 'absolute font-black text-2xl text-amber-400 transform scale-110 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] transition-all duration-500 ease-out pointer-events-none opacity-100';
+            el.innerText = `-${dmg}`;
+            
+            // Scatter positions randomly around area
+            const rx = Math.floor(Math.random() * 80) - 40;
+            const ry = Math.floor(Math.random() * 60) - 50;
+            el.style.transform = `translate(${rx}px, ${ry}px)`;
+            
+            container.appendChild(el);
+            
+            setTimeout(() => {
+                el.style.transform = `translate(${rx}px, ${ry - 40}px)`;
+                el.style.opacity = '0';
+            }, 50);
+            
+            setTimeout(() => el.remove(), 550);
+        }
+
+        function handleEnemyDeath() {
+            if (!battleState.isBossPhase) {
+                battleState.killsCount += 1;
+                logApi('EVENT', `Defeated normal minion #${battleState.killsCount}`, 'SUCCESS');
+                
+                if (battleState.killsCount >= battleState.requiredKills) {
+                    // Transition to Boss Monster Phase
+                    battleState.isBossPhase = true;
+                    battleState.currentEnemyMaxHp = battleState.bossMonster.hp;
+                    battleState.currentEnemyHp = battleState.currentEnemyMaxHp;
+                    logApi('EVENT', `🚨 BOSS ${battleState.bossMonster.name} spawned! Entering final phase.`, 'WARN');
+                } else {
+                    // Reset next standard minion
+                    battleState.currentEnemyHp = battleState.currentEnemyMaxHp;
+                }
+                setupEnemyPhaseUI();
+            } else {
+                // Boss defeated! Trigger match end settlement
+                logApi('EVENT', `🏆 BOSS ${battleState.bossMonster.name} eliminated successfully!`, 'VICTORY');
+                triggerSettlementScreen();
+            }
+        }
+
+        function triggerSettlementScreen() {
+            const durationSec = Math.round((new Date() - battleState.startTime) / 1000);
+            
+            // Calculate Stars rating based on time performance
+            let calculatedStars = 3;
+            if (durationSec > 30) calculatedStars = 2;
+            if (durationSec > 60) calculatedStars = 1;
+
+            // Generate rewards based on stage difficulty
+            const goldReward = battleState.stage.difficulty * 200;
+
+            // Update DOM text
+            document.getElementById('settle-stage-name').innerText = `關卡 ${battleState.stage.stage_no}: ${battleState.stage.stage_name}`;
+            document.getElementById('settle-time-val').innerText = durationSec;
+            document.getElementById('settle-gold-reward').innerText = goldReward;
+
+            const starsRow = document.getElementById('settle-stars-row');
+            starsRow.innerHTML = '';
+            for(let i=0; i<3; i++) {
+                starsRow.innerHTML += `<i class="fas fa-star ${i < calculatedStars ? 'text-amber-400' : 'text-slate-700'}"></i>`;
+            }
+
+            // Temporarily store dynamic rewards metadata on battle state object context
+            battleState.calculatedStars = calculatedStars;
+            battleState.goldReward = goldReward;
+            battleState.durationSec = durationSec;
+
+            // Display Settlement Window
+            document.getElementById('modal-settlement').classList.remove('hidden');
+            
+            if (currentStep === 3) {
+                navigateStep(1);
+            }
+        }
+
+        function saveSettlementProgress() {
+            const player = db.users[0];
+            const progress = db.game_progress.find(p => p.stage_id === battleState.stage.id);
+
+            // Add gold bounty
+            player.gold += battleState.goldReward;
+            document.getElementById('player-gold').innerText = player.gold;
+
+            // Save persistent relational state metrics back to database mock storage row
+            if (progress) {
+                progress.cleared = 1;
+                if (battleState.calculatedStars > progress.star) {
+                    progress.star = battleState.calculatedStars;
+                }
+                if (progress.best_time === 0 || battleState.durationSec < progress.best_time) {
+                    progress.best_time = battleState.durationSec;
+                }
+                progress.last_played = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            }
+
+            // Sync payloads network debug tracers
+            const savePayload = {
+                user_id: player.id,
+                stage_id: battleState.stage.id,
+                cleared: 1,
+                star: battleState.calculatedStars,
+                elapsed_seconds: battleState.durationSec,
+                awarded_gold: battleState.goldReward
+            };
+            
+            logApi('POST', '/api/progress/save', '200 OK', JSON.stringify(savePayload));
+
+            // Clean up view states
+            document.getElementById('modal-settlement').classList.add('hidden');
+            document.getElementById('screen-battle').classList.add('hidden');
+            document.getElementById('screen-lobby').classList.remove('hidden');
+
+            // Refresh UI grids
+            renderStages();
+            renderDbTable();
+
+            if (currentStep === 4) {
+                navigateStep(1);
+            }
+        }
+
+        function quitBattle() {
+            logApi('ACTION', 'Player aborted combat campaign.', 'CLIENT');
+            document.getElementById('screen-battle').classList.add('hidden');
+            document.getElementById('screen-lobby').classList.remove('hidden');
+            renderStages();
+        }
+
+        // ----------------------------------------------------
+        // VISUAL DATA VIEWER TABLE SYSTEM TAB SWAP
+        // ----------------------------------------------------
+        function switchDbTab(tabName) {
+            activeDbTab = tabName;
+            
+            // Toggle active look classes on HTML elements
+            ['users', 'weapons', 'stages', 'monsters', 'progress'].forEach(t => {
+                const button = document.getElementById(`tab-btn-${t}`);
+                if (button) {
+                    if (t === tabName) button.classList.add('active');
+                    else button.classList.remove('active');
+                }
+            });
+
+            renderDbTable();
+        }
+
+        function renderDbTable() {
+            const container = document.getElementById('db-table-view-container');
+            let html = '';
+
+            if (activeDbTab === 'users') {
+                html = `
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-500 border-b border-slate-800 text-[10px]">
+                                <th class="pb-1 font-semibold">id (BIGINT)</th>
+                                <th class="pb-1 font-semibold">username</th>
+                                <th class="pb-1 font-semibold">gold (INT)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300 text-[11px]">
+                            ${db.users.map(u => `
+                                <tr>
+                                    <td class="py-1.5 font-bold text-amber-500">${u.id}</td>
+                                    <td class="py-1.5 text-indigo-300 font-bold">${u.username}</td>
+                                    <td class="py-1.5 text-emerald-400 font-bold">${u.gold}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } else if (activeDbTab === 'weapons') {
+                html = `
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-500 border-b border-slate-800 text-[10px]">
+                                <th class="pb-1 font-semibold">id</th>
+                                <th class="pb-1 font-semibold">weapon_type</th>
+                                <th class="pb-1 font-semibold">level</th>
+                                <th class="pb-1 font-semibold">damage</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300 text-[11px]">
+                            ${db.weapons.map(w => `
+                                <tr class="${w.id === currentActiveWeaponId ? 'bg-indigo-950/30' : ''}">
+                                    <td class="py-1 font-bold text-amber-400">${w.id}</td>
+                                    <td class="py-1 text-slate-300">${w.weapon_type}</td>
+                                    <td class="py-1 font-bold text-emerald-400">${w.level}</td>
+                                    <td class="py-1 font-bold text-rose-400">${w.damage}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } else if (activeDbTab === 'stages') {
+                html = `
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-500 border-b border-slate-800 text-[10px]">
+                                <th class="pb-1 font-semibold">id</th>
+                                <th class="pb-1 font-semibold">no</th>
+                                <th class="pb-1 font-semibold">stage_name</th>
+                                <th class="pb-1 font-semibold">difficulty</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300 text-[11px]">
+                            ${db.stages.map(s => `
+                                <tr>
+                                    <td class="py-1 text-slate-500">${s.id}</td>
+                                    <td class="py-1 text-slate-300">${s.stage_no}</td>
+                                    <td class="py-1 text-indigo-300 font-medium">${s.stage_name}</td>
+                                    <td class="py-1 text-amber-500">${'★'.repeat(s.difficulty)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } else if (activeDbTab === 'monsters') {
+                html = `
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-500 border-b border-slate-800 text-[10px]">
+                                <th class="pb-1 font-semibold">id</th>
+                                <th class="pb-1 font-semibold">name</th>
+                                <th class="pb-1 font-semibold">hp (血量)</th>
+                                <th class="pb-1 font-semibold">damage</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300 text-[11px]">
+                            ${db.monsters.map(m => `
+                                <tr>
+                                    <td class="py-1 text-slate-500">${m.id}</td>
+                                    <td class="py-1 text-rose-400 font-bold">${m.emoji} ${m.name}</td>
+                                    <td class="py-1 text-slate-300">${m.hp}</td>
+                                    <td class="py-1 text-slate-400">${m.damage}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } else if (activeDbTab === 'progress') {
+                html = `
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-500 border-b border-slate-800 text-[10px]">
+                                <th class="pb-1 font-semibold">stage_id</th>
+                                <th class="pb-1 font-semibold">cleared</th>
+                                <th class="pb-1 font-semibold">star</th>
+                                <th class="pb-1 font-semibold">best_time</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300 text-[11px]">
+                            ${db.game_progress.map(p => `
+                                <tr>
+                                    <td class="py-1 font-bold text-slate-400">關卡 ${p.stage_id}</td>
+                                    <td class="py-1">${p.cleared === 1 ? '<span class="text-emerald-400 font-bold">已過關</span>' : '<span class="text-slate-600">未通關</span>'}</td>
+                                    <td class="py-1 text-amber-400 font-bold">${p.star}⭐</td>
+                                    <td class="py-1 text-cyan-400">${p.best_time}s</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // ----------------------------------------------------
+        // TUTORIAL STEP NAVIGATION MANAGEMENT
+        // ----------------------------------------------------
+        function updateTutorialUI() {
+            const stepData = tutorialSteps.find(s => s.step === currentStep);
+            if (!stepData) return;
+
+            document.getElementById('step-num-badge').innerText = stepData.step;
+            document.getElementById('step-title').innerText = stepData.title;
+            document.getElementById('step-desc').innerHTML = stepData.desc;
+            document.getElementById('step-progress-text').innerText = `進度: ${stepData.step} / ${tutorialSteps.length}`;
+
+            // Handle button enabled status
+            document.getElementById('btn-prev-step').disabled = currentStep === 1;
+            document.getElementById('btn-next-step').disabled = currentStep === tutorialSteps.length;
+
+            // Visual Highlight target border container
+            document.querySelectorAll('.pixel-border').forEach(el => el.classList.remove('pixel-border', 'border-amber-400'));
+            const targetEl = document.getElementById(stepData.anchor);
+            if (targetEl) {
+                targetEl.classList.add('pixel-border');
+                targetEl.style.borderColor = '#f59e0b'; // Amber yellow highlight ring
+            }
+        }
+
+        function navigateStep(direction) {
+            const next = currentStep + direction;
+            if (next >= 1 && next <= tutorialSteps.length) {
+                currentStep = next;
+                updateTutorialUI();
+            }
+        }
+
+        function restartTutorial() {
+            currentStep = 1;
+            updateTutorialUI();
+            logApi('SYSTEM', 'Tutorial walkthrough reset back to initial setup.', 'CLIENT');
+        }
+    </script>
+</body>
+</html>
