@@ -64,6 +64,9 @@
         .battle-alert-pop {
             animation: alertPulse 0.8s ease-in-out;
         }
+        .enemy-projectile {
+            animation: enemyProjectile 0.45s cubic-bezier(.2,.8,.2,1) forwards;
+        }
         @keyframes floatAura {
             0%, 100% { transform: translateY(0px) scale(1); }
             50% { transform: translateY(-8px) scale(1.02); }
@@ -106,6 +109,10 @@
             0% { transform: scale(0.96); opacity: 0.75; }
             50% { transform: scale(1.04); opacity: 1; }
             100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes enemyProjectile {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 0.95; }
+            100% { transform: translate(120px, 80px) scale(0.25); opacity: 0; }
         }
         /* Custom scrollbar */
         ::-webkit-scrollbar {
@@ -615,7 +622,9 @@
             score: 0,
             combo: 0,
             shotsFired: 0,
-            hits: 0
+            hits: 0,
+            desperationTriggered: false,
+            desperationBurstActive: false
         };
 
         // ----------------------------------------------------
@@ -1032,6 +1041,8 @@
             battleState.startTime = new Date();
             playerHealth = maxPlayerHealth;
             resetBattleStats();
+            battleState.desperationTriggered = false;
+            battleState.desperationBurstActive = false;
 
             // Set up UI components
             document.getElementById('screen-lobby').classList.add('hidden');
@@ -1127,6 +1138,10 @@
                 playerStats.shotsFired += 1;
             }
 
+            if (battleState.currentEnemyHp > 0) {
+                maybeTriggerDesperationBurst();
+            }
+
             updateBattleStatsUI();
             
             // Check health rules
@@ -1193,6 +1208,44 @@
             } catch (error) {
                 console.warn('音效初始化失敗', error);
             }
+        }
+
+        function maybeTriggerDesperationBurst() {
+            const hpRatio = battleState.currentEnemyMaxHp > 0 ? battleState.currentEnemyHp / battleState.currentEnemyMaxHp : 1;
+            if (battleState.desperationTriggered || battleState.currentEnemyHp <= 0 || hpRatio > 0.1 || battleState.desperationBurstActive) return;
+            if (Math.random() > 0.6) {
+                battleState.desperationTriggered = true;
+                launchDesperationBurst();
+            }
+        }
+
+        function launchDesperationBurst() {
+            if (!battleState.stage || battleState.currentEnemyHp <= 0) return;
+            battleState.desperationBurstActive = true;
+            const burstCount = battleState.isBossPhase ? 4 : 3;
+            showBattleAlert(`⚠️ 瀕死絕招！怪物暴走，連續發射 ${burstCount} 波子彈！`);
+            for (let i = 0; i < burstCount; i++) {
+                setTimeout(() => {
+                    if (!battleState.stage || battleState.currentEnemyHp <= 0) return;
+                    spawnEnemyProjectile();
+                    handleEnemyAttack(true, i + 1, burstCount);
+                }, i * 220);
+            }
+            setTimeout(() => {
+                battleState.desperationBurstActive = false;
+            }, burstCount * 220 + 700);
+        }
+
+        function spawnEnemyProjectile() {
+            const container = document.getElementById('damage-container');
+            if (!container) return;
+            const projectile = document.createElement('div');
+            projectile.className = 'enemy-projectile absolute w-3 h-3 rounded-full pointer-events-none shadow-[0_0_16px_rgba(251,146,60,0.8)]';
+            projectile.style.left = '50%';
+            projectile.style.top = '50%';
+            projectile.style.background = 'radial-gradient(circle, #fef3c7 0%, #fb923c 45%, #ef4444 100%)';
+            container.appendChild(projectile);
+            setTimeout(() => projectile.remove(), 460);
         }
 
         function spawnDamageText(dmg) {
@@ -1265,15 +1318,19 @@
             }
         }
 
-        function handleEnemyAttack() {
+        function handleEnemyAttack(isDesperation = false, burstIndex = 0, burstCount = 1) {
             if (!battleState.stage || battleState.currentEnemyHp <= 0 || playerHealth <= 0) return;
             const difficultyFactor = selectedDifficulty === 'hard' ? 1.25 : selectedDifficulty === 'easy' ? 0.85 : 1;
             const baseDamage = battleState.isBossPhase
                 ? Math.round(battleState.bossMonster.damage * 0.16 * difficultyFactor)
                 : Math.round(18 * difficultyFactor);
             const damage = Math.max(8, baseDamage + Math.round(Math.random() * 10));
-            playerHealth = Math.max(0, playerHealth - damage);
-            showBattleAlert(`怪物反擊！損失 ${damage} 血量`);
+            const finalDamage = isDesperation ? Math.max(12, Math.round(damage * (1.15 + burstIndex * 0.08))) : damage;
+            playerHealth = Math.max(0, playerHealth - finalDamage);
+            const message = isDesperation
+                ? `⚠️ 瀕死絕招！第 ${burstIndex}/${burstCount} 波子彈命中，損失 ${finalDamage} 血量`
+                : `怪物反擊！損失 ${damage} 血量`;
+            showBattleAlert(message);
             const arena = document.querySelector('.game-canvas');
             arena.classList.remove('attack-flash', 'battle-screen-shake');
             void arena.offsetWidth;
