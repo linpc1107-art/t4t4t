@@ -26,6 +26,54 @@
         .health-bar-fill {
             transition: width 0.2s ease-out;
         }
+        .game-canvas::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top, rgba(255,255,255,0.16), transparent 35%), radial-gradient(circle at bottom, rgba(34,211,238,0.18), transparent 40%);
+            pointer-events: none;
+            animation: floatAura 8s ease-in-out infinite;
+        }
+        .game-canvas::after {
+            content: '';
+            position: absolute;
+            inset: -20%;
+            background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.04) 45%, transparent 65%);
+            transform: translateX(-120%);
+            animation: sweepLight 6s linear infinite;
+            pointer-events: none;
+        }
+        .battle-entity-bob {
+            animation: enemyBob 1.1s ease-in-out infinite;
+        }
+        .attack-flash {
+            animation: attackFlash 0.25s ease-out;
+        }
+        .battle-alert-pop {
+            animation: alertPulse 0.8s ease-in-out;
+        }
+        @keyframes floatAura {
+            0%, 100% { transform: translateY(0px) scale(1); }
+            50% { transform: translateY(-8px) scale(1.02); }
+        }
+        @keyframes sweepLight {
+            0% { transform: translateX(-120%); }
+            100% { transform: translateX(120%); }
+        }
+        @keyframes enemyBob {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        @keyframes attackFlash {
+            0% { box-shadow: inset 0 0 0 rgba(255,255,255,0); }
+            50% { box-shadow: inset 0 0 40px rgba(248,113,113,0.25); }
+            100% { box-shadow: inset 0 0 0 rgba(255,255,255,0); }
+        }
+        @keyframes alertPulse {
+            0% { transform: scale(0.96); opacity: 0.75; }
+            50% { transform: scale(1.04); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
         /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
@@ -125,6 +173,25 @@
                     </div>
                 </div>
 
+                <div class="bg-gradient-to-r from-indigo-950/70 via-slate-900 to-slate-950 rounded-xl p-4 border border-slate-800 shadow-lg">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="h-10 w-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                                <i class="fas fa-fire"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm font-bold text-slate-100">戰場情報卡</div>
+                                <div class="text-[11px] text-slate-400">最佳分數、連擊紀錄與當前挑戰難度將即時顯示</div>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2 text-[11px] text-slate-300">
+                            <span class="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">最佳分數 <strong id="lobby-best-score" class="text-amber-400">0</strong></span>
+                            <span class="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">最高連擊 <strong id="lobby-max-combo" class="text-rose-400">0x</strong></span>
+                            <span class="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">當前難度 <strong id="lobby-current-difficulty" class="text-emerald-400">標準</strong></span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="bg-slate-900 rounded-xl p-4 border border-slate-800 shadow-lg">
                     <div class="flex flex-wrap justify-between items-start gap-3">
                         <div>
@@ -202,6 +269,13 @@
                             <span class="px-2 py-1 rounded bg-slate-800">連擊 <strong id="battle-combo" class="text-rose-400">0x</strong></span>
                             <span class="px-2 py-1 rounded bg-slate-800">命中率 <strong id="battle-accuracy" class="text-cyan-400">0%</strong></span>
                         </div>
+                        <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                            <span class="px-2 py-1 rounded bg-slate-800">血量</span>
+                            <div class="h-2 w-20 bg-slate-950 rounded-full overflow-hidden">
+                                <div id="player-hp-bar" class="h-full bg-gradient-to-r from-emerald-500 to-rose-500" style="width: 100%"></div>
+                            </div>
+                            <span id="player-hp-text" class="text-emerald-400 font-bold">100/100</span>
+                        </div>
                         <button id="btn-auto-fire" onclick="toggleAutoFire()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded transition border border-slate-700">
                             自動連射: 關
                         </button>
@@ -225,9 +299,10 @@
                         <div class="w-full bg-slate-950 h-3.5 rounded-full p-0.5 border border-slate-800/80 shadow-inner">
                             <div id="enemy-hp-bar" class="health-bar-fill h-full bg-gradient-to-r from-rose-600 to-amber-500 rounded-full" style="width: 100%;"></div>
                         </div>
-                        <div class="flex justify-between items-center">
+                        <div class="flex justify-between items-center gap-2">
                             <span id="enemy-phase-badge" class="text-[10px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.2 rounded uppercase">當前進度: 普通小怪</span>
-                            <span class="text-[10px] text-slate-400" id="battle-instruction-tip">💡 點擊下方靶心區域即可對敵人發起射擊攻擊！</span>
+                            <span id="battle-alert" class="hidden text-[10px] bg-rose-600/90 text-white px-2.5 py-1 rounded-full border border-rose-500/60 battle-alert-pop">怪物發動反擊！</span>
+                            <span class="text-[10px] text-slate-400" id="battle-instruction-tip">💡 點擊怪物或按空白鍵，怪物會反擊並提升壓力！</span>
                         </div>
                     </div>
 
@@ -237,7 +312,7 @@
                         <div id="damage-container" class="absolute inset-0 pointer-events-none flex items-center justify-center"></div>
                         
                         <!-- Enemy Simulated Graphical Node -->
-                        <div id="enemy-sprite-node" class="text-center transform transition-all duration-100 cursor-pointer" onclick="fireActiveWeapon()">
+                        <div id="enemy-sprite-node" class="text-center transform transition-all duration-100 cursor-pointer battle-entity-bob" onclick="fireActiveWeapon()">
                             <div class="text-6xl mb-2 drop-shadow-[0_0_25px_rgba(239,68,68,0.5)]" id="enemy-emoji">👹</div>
                             <div class="text-[10px] bg-slate-950/80 text-slate-300 px-2 py-0.5 rounded-full border border-slate-800 inline-block">
                                 點擊怪物直接開火
@@ -316,6 +391,37 @@
                     <button id="btn-save-progress" onclick="saveSettlementProgress()" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-3 rounded-xl transition shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2">
                         <i class="fas fa-save"></i> 儲存進度並返回大廳
                     </button>
+                </div>
+            </div>
+
+            <div id="modal-defeat" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-slate-900 border-2 border-rose-500/50 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                    <div class="absolute -top-3 -left-3 bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded shadow">
+                        戰敗結算
+                    </div>
+                    <div class="text-center mb-6">
+                        <span class="text-5xl block mb-2">💥</span>
+                        <h2 class="text-2xl font-black text-rose-400 tracking-wide">你被怪物擊敗了</h2>
+                        <p class="text-xs text-slate-400 mt-1">這次的失敗也會成為下一場更強的訓練資料。</p>
+                    </div>
+                    <div class="bg-slate-950 rounded-xl p-4 border border-slate-800 space-y-3 mb-6 text-sm text-slate-300">
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">最終分數</span>
+                            <span id="defeat-score" class="font-bold text-amber-400">0</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">剩餘血量</span>
+                            <span id="defeat-hp" class="font-bold text-rose-400">0</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="restartCurrentStage()" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-black py-3 rounded-xl transition">
+                            重新挑戰
+                        </button>
+                        <button onclick="returnToLobbyFromDefeat()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-black py-3 rounded-xl transition">
+                            返回大廳
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -440,6 +546,9 @@
         let currentStep = 1;
         let selectedDifficulty = 'normal';
         let autoFireTimer = null;
+        let enemyAttackTimer = null;
+        let playerHealth = 100;
+        let maxPlayerHealth = 100;
         let playerStats = {
             score: 0,
             combo: 0,
@@ -519,6 +628,7 @@
             renderDbTable();
             updateTutorialUI();
             renderBattleMeta();
+            renderLobbySummary();
             document.addEventListener('keydown', handleKeyboardShortcuts);
             logApi('SYSTEM', 'MVP Front-end Emulator Engine started successfully.', 'READY');
         };
@@ -571,6 +681,7 @@
             renderWeapons();
             renderStages();
             renderDbTable();
+            renderLobbySummary();
             saveGameState();
             
             // Advance tutorial step naturally
@@ -604,6 +715,16 @@
             localStorage.setItem('mvp-game-state', JSON.stringify(snapshot));
         }
 
+        function renderLobbySummary() {
+            const bestScoreEl = document.getElementById('lobby-best-score');
+            const maxComboEl = document.getElementById('lobby-max-combo');
+            const diffEl = document.getElementById('lobby-current-difficulty');
+            const player = db.users?.[0];
+            if (bestScoreEl) bestScoreEl.innerText = player?.best_score || 0;
+            if (maxComboEl) maxComboEl.innerText = `${playerStats.maxCombo || 0}x`;
+            if (diffEl) diffEl.innerText = difficultyConfig[selectedDifficulty].label;
+        }
+
         function renderDifficultyButtons() {
             ['easy', 'normal', 'hard'].forEach(key => {
                 const btn = document.getElementById(`difficulty-${key}`);
@@ -621,6 +742,7 @@
         function setDifficulty(mode) {
             selectedDifficulty = mode;
             renderDifficultyButtons();
+            renderLobbySummary();
             saveGameState();
             logApi('CLIENT', '/ui/difficulty', '200 OK', `Mode: ${difficultyConfig[mode].label}`);
         }
@@ -656,11 +778,22 @@
             const comboEl = document.getElementById('battle-combo');
             const accuracyEl = document.getElementById('battle-accuracy');
             const autoBtn = document.getElementById('btn-auto-fire');
+            const hpBar = document.getElementById('player-hp-bar');
+            const hpText = document.getElementById('player-hp-text');
             if (scoreEl) scoreEl.innerText = battleState.score;
             if (comboEl) comboEl.innerText = `${battleState.combo}x`;
             if (accuracyEl) {
                 const accuracy = battleState.shotsFired ? Math.round((battleState.hits / battleState.shotsFired) * 100) : 0;
                 accuracyEl.innerText = `${accuracy}%`;
+            }
+            if (hpBar) {
+                const pct = Math.max(0, (playerHealth / maxPlayerHealth) * 100);
+                hpBar.style.width = `${pct}%`;
+                hpBar.className = 'h-full ' + (pct > 45 ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' : pct > 20 ? 'bg-gradient-to-r from-amber-500 to-rose-400' : 'bg-gradient-to-r from-rose-500 to-rose-600');
+            }
+            if (hpText) {
+                hpText.innerText = `${playerHealth}/${maxPlayerHealth}`;
+                hpText.className = playerHealth > 50 ? 'text-emerald-400 font-bold' : playerHealth > 20 ? 'text-amber-400 font-bold' : 'text-rose-400 font-bold';
             }
             if (autoBtn) {
                 autoBtn.innerText = playerStats.autoFire ? '自動連射: 開' : '自動連射: 關';
@@ -673,6 +806,7 @@
             battleState.shotsFired = 0;
             battleState.hits = 0;
             renderBattleMeta();
+            renderLobbySummary();
         }
 
         function updateBattleStatsUI() {
@@ -826,12 +960,14 @@
             battleState.currentEnemyMaxHp = Math.round(Math.max(80, boss.hp * 0.2 * difficultyMultiplier));
             battleState.currentEnemyHp = battleState.currentEnemyMaxHp;
             battleState.startTime = new Date();
+            playerHealth = maxPlayerHealth;
             resetBattleStats();
 
             // Set up UI components
             document.getElementById('screen-lobby').classList.add('hidden');
             document.getElementById('screen-battle').classList.remove('hidden');
             document.getElementById('modal-settlement').classList.add('hidden');
+            document.getElementById('modal-defeat').classList.add('hidden');
 
             document.getElementById('battle-stage-title').innerText = `關卡 ${stage.stage_no}: ${stage.stage_name}`;
             document.getElementById('battle-weapon-name').innerText = activeWeapon.name;
@@ -839,6 +975,7 @@
             
             setupEnemyPhaseUI();
             renderBattleMeta();
+            startEnemyAttackLoop();
             
             logApi('GET', `/api/stages`, '200 OK', `Loaded active details for Stage: ${stage.stage_name}`);
             
@@ -890,6 +1027,10 @@
             const enemySprite = document.getElementById('enemy-sprite-node');
             enemySprite.classList.add('scale-90', 'brightness-125');
             setTimeout(() => enemySprite.classList.remove('scale-90', 'brightness-125'), 80);
+            const arena = document.querySelector('.game-canvas');
+            arena.classList.remove('attack-flash');
+            void arena.offsetWidth;
+            arena.classList.add('attack-flash');
 
             // Spawn floating floating damage indicator text numbers
             spawnDamageText(dmg);
@@ -898,10 +1039,12 @@
                 battleState.shotsFired += 1;
                 battleState.hits += 1;
                 battleState.combo += 1;
-                battleState.score += 120 + battleState.combo * 25;
+                const multiplier = 1 + Math.floor((battleState.combo - 1) / 3) * 0.2;
+                const scoreGain = Math.round((120 + battleState.combo * 25) * multiplier);
+                battleState.score += scoreGain;
                 playerStats.shotsFired += 1;
                 playerStats.hits += 1;
-                playerStats.score += 120 + battleState.combo * 25;
+                playerStats.score += scoreGain;
                 playerStats.maxCombo = Math.max(playerStats.maxCombo || 0, battleState.combo);
             } else {
                 battleState.shotsFired += 1;
@@ -942,6 +1085,8 @@
         function handleEnemyDeath() {
             if (!battleState.isBossPhase) {
                 battleState.killsCount += 1;
+                playerHealth = Math.min(maxPlayerHealth, playerHealth + 12);
+                renderBattleMeta();
                 logApi('EVENT', `Defeated normal minion #${battleState.killsCount}`, 'SUCCESS');
                 
                 if (battleState.killsCount >= battleState.requiredKills) {
@@ -960,6 +1105,60 @@
                 logApi('EVENT', `🏆 BOSS ${battleState.bossMonster.name} eliminated successfully!`, 'VICTORY');
                 triggerSettlementScreen();
             }
+        }
+
+        function startEnemyAttackLoop() {
+            stopEnemyAttackLoop();
+            if (document.getElementById('screen-battle').classList.contains('hidden')) return;
+            enemyAttackTimer = setInterval(() => {
+                if (!battleState.stage || battleState.currentEnemyHp <= 0) return;
+                if (document.getElementById('screen-battle').classList.contains('hidden')) {
+                    stopEnemyAttackLoop();
+                    return;
+                }
+                if (!document.getElementById('modal-settlement').classList.contains('hidden') || !document.getElementById('modal-defeat').classList.contains('hidden')) {
+                    stopEnemyAttackLoop();
+                    return;
+                }
+                handleEnemyAttack();
+            }, 1600);
+        }
+
+        function stopEnemyAttackLoop() {
+            if (enemyAttackTimer) {
+                clearInterval(enemyAttackTimer);
+                enemyAttackTimer = null;
+            }
+        }
+
+        function handleEnemyAttack() {
+            if (!battleState.stage || battleState.currentEnemyHp <= 0 || playerHealth <= 0) return;
+            const difficultyFactor = selectedDifficulty === 'hard' ? 1.25 : selectedDifficulty === 'easy' ? 0.85 : 1;
+            const baseDamage = battleState.isBossPhase
+                ? Math.round(battleState.bossMonster.damage * 0.16 * difficultyFactor)
+                : Math.round(18 * difficultyFactor);
+            const damage = Math.max(8, baseDamage + Math.round(Math.random() * 10));
+            playerHealth = Math.max(0, playerHealth - damage);
+            showBattleAlert(`怪物反擊！損失 ${damage} 血量`);
+            const arena = document.querySelector('.game-canvas');
+            arena.classList.remove('attack-flash');
+            void arena.offsetWidth;
+            arena.classList.add('attack-flash');
+            renderBattleMeta();
+            if (playerHealth <= 0) {
+                triggerDefeatScreen();
+            }
+        }
+
+        function showBattleAlert(message) {
+            const alertBox = document.getElementById('battle-alert');
+            if (!alertBox) return;
+            alertBox.innerText = message;
+            alertBox.classList.remove('hidden');
+            alertBox.classList.add('battle-alert-pop');
+            setTimeout(() => {
+                alertBox.classList.remove('battle-alert-pop');
+            }, 800);
         }
 
         function triggerSettlementScreen() {
@@ -1000,6 +1199,31 @@
             }
         }
 
+        function triggerDefeatScreen() {
+            stopAutoFire();
+            stopEnemyAttackLoop();
+            document.getElementById('modal-defeat').classList.remove('hidden');
+            document.getElementById('defeat-score').innerText = battleState.score;
+            document.getElementById('defeat-hp').innerText = `${playerHealth}/${maxPlayerHealth}`;
+            logApi('EVENT', 'Player was defeated by the monster swarm.', 'FAIL');
+        }
+
+        function restartCurrentStage() {
+            document.getElementById('modal-defeat').classList.add('hidden');
+            if (battleState.stage) {
+                startBattle(battleState.stage.id);
+            }
+        }
+
+        function returnToLobbyFromDefeat() {
+            stopAutoFire();
+            stopEnemyAttackLoop();
+            document.getElementById('modal-defeat').classList.add('hidden');
+            document.getElementById('screen-battle').classList.add('hidden');
+            document.getElementById('screen-lobby').classList.remove('hidden');
+            renderStages();
+        }
+
         function saveSettlementProgress() {
             const player = db.users[0];
             const progress = db.game_progress.find(p => p.stage_id === battleState.stage.id);
@@ -1036,6 +1260,7 @@
 
             // Clean up view states
             stopAutoFire();
+            stopEnemyAttackLoop();
             document.getElementById('modal-settlement').classList.add('hidden');
             document.getElementById('screen-battle').classList.add('hidden');
             document.getElementById('screen-lobby').classList.remove('hidden');
@@ -1043,6 +1268,7 @@
             // Refresh UI grids
             renderStages();
             renderDbTable();
+            renderLobbySummary();
             saveGameState();
 
             if (currentStep === 4) {
@@ -1052,11 +1278,13 @@
 
         function quitBattle() {
             stopAutoFire();
+            stopEnemyAttackLoop();
             logApi('ACTION', 'Player aborted combat campaign.', 'CLIENT');
             document.getElementById('screen-battle').classList.add('hidden');
             document.getElementById('screen-lobby').classList.remove('hidden');
             renderStages();
             renderBattleMeta();
+            renderLobbySummary();
         }
 
         // ----------------------------------------------------
