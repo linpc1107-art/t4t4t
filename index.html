@@ -125,6 +125,27 @@
                     </div>
                 </div>
 
+                <div class="bg-slate-900 rounded-xl p-4 border border-slate-800 shadow-lg">
+                    <div class="flex flex-wrap justify-between items-start gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                                <i class="fas fa-bolt text-amber-400"></i> 戰術配置與快速操作
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-0.5">可切換難度、啟用自動連射，並用鍵盤快速進行射擊與武器切換。</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button id="difficulty-easy" onclick="setDifficulty('easy')" class="px-2.5 py-1.5 rounded border border-slate-700 text-[11px] font-medium text-slate-300 hover:border-emerald-500 hover:text-emerald-300 transition">輕鬆</button>
+                            <button id="difficulty-normal" onclick="setDifficulty('normal')" class="px-2.5 py-1.5 rounded border border-slate-700 text-[11px] font-medium text-slate-300 hover:border-amber-500 hover:text-amber-300 transition">標準</button>
+                            <button id="difficulty-hard" onclick="setDifficulty('hard')" class="px-2.5 py-1.5 rounded border border-slate-700 text-[11px] font-medium text-slate-300 hover:border-rose-500 hover:text-rose-300 transition">困難</button>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                        <span class="bg-slate-950/70 px-2 py-1 rounded">空白鍵: 發射</span>
+                        <span class="bg-slate-950/70 px-2 py-1 rounded">1-4: 切換武器</span>
+                        <span id="difficulty-mode-label" class="bg-amber-500/10 text-amber-300 px-2 py-1 rounded border border-amber-500/20">標準難度</span>
+                    </div>
+                </div>
+
                 <!-- Main Content Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- Weapons Armory Panel -->
@@ -172,10 +193,18 @@
                         <span class="text-xs bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded border border-rose-500/30 font-bold">戰場即時狀態</span>
                         <h3 id="battle-stage-title" class="font-bold text-slate-200">關卡 1: 森林戰區</h3>
                     </div>
-                    <div class="flex gap-4 items-center">
+                    <div class="flex flex-wrap gap-3 items-center">
                         <div class="text-xs text-slate-400">
                             配備武器: <span id="battle-weapon-name" class="font-bold text-emerald-400">突擊步槍</span> (Lv.<span id="battle-weapon-level">1</span>)
                         </div>
+                        <div class="hidden sm:flex items-center gap-2 text-[11px] text-slate-400">
+                            <span class="px-2 py-1 rounded bg-slate-800">分數 <strong id="battle-score" class="text-amber-400">0</strong></span>
+                            <span class="px-2 py-1 rounded bg-slate-800">連擊 <strong id="battle-combo" class="text-rose-400">0x</strong></span>
+                            <span class="px-2 py-1 rounded bg-slate-800">命中率 <strong id="battle-accuracy" class="text-cyan-400">0%</strong></span>
+                        </div>
+                        <button id="btn-auto-fire" onclick="toggleAutoFire()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded transition border border-slate-700">
+                            自動連射: 關
+                        </button>
                         <button onclick="quitBattle()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded transition border border-slate-700">
                             撤退回大廳
                         </button>
@@ -265,6 +294,14 @@
                         <div class="flex justify-between text-sm">
                             <span class="text-slate-400">最佳通關時間 (best_time)</span>
                             <span class="font-mono font-bold text-emerald-400"><span id="settle-time-val">45</span> 秒</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-400">本局得分</span>
+                            <span id="settle-score-val" class="font-bold text-amber-400">0 pts</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-400">命中率</span>
+                            <span id="settle-accuracy-val" class="font-bold text-cyan-400">0%</span>
                         </div>
                         <div class="border-t border-slate-800 my-2 pt-2 flex justify-between text-sm">
                             <span class="text-slate-400 font-medium">獲取金幣獎勵 (gold)</span>
@@ -401,6 +438,21 @@
         let currentActiveStage = null;
         let activeDbTab = 'users';
         let currentStep = 1;
+        let selectedDifficulty = 'normal';
+        let autoFireTimer = null;
+        let playerStats = {
+            score: 0,
+            combo: 0,
+            maxCombo: 0,
+            shotsFired: 0,
+            hits: 0,
+            autoFire: false
+        };
+        const difficultyConfig = {
+            easy: { label: '輕鬆', multiplier: 0.85 },
+            normal: { label: '標準', multiplier: 1 },
+            hard: { label: '困難', multiplier: 1.25 }
+        };
         
         // Battle State Tracker
         let battleState = {
@@ -411,7 +463,11 @@
             killsCount: 0,
             requiredKills: 3,
             isBossPhase: false,
-            startTime: null
+            startTime: null,
+            score: 0,
+            combo: 0,
+            shotsFired: 0,
+            hits: 0
         };
 
         // ----------------------------------------------------
@@ -458,8 +514,12 @@
 
         // Initialize App on window load
         window.onload = function() {
+            loadGameState();
+            renderDifficultyButtons();
             renderDbTable();
             updateTutorialUI();
+            renderBattleMeta();
+            document.addEventListener('keydown', handleKeyboardShortcuts);
             logApi('SYSTEM', 'MVP Front-end Emulator Engine started successfully.', 'READY');
         };
 
@@ -494,6 +554,7 @@
         function handleAuth(mode) {
             const user = db.users[0];
             currentUser = user;
+            user.best_score = user.best_score || 0;
             
             logApi('POST', `/api/auth/${mode}`, '200 OK', JSON.stringify({ username: 'player1', psw: '******' }));
             logApi('GET', '/api/player', '200 OK', 'Loading standard user profiles & items');
@@ -509,10 +570,131 @@
             // Render interactive modules
             renderWeapons();
             renderStages();
+            renderDbTable();
+            saveGameState();
             
             // Advance tutorial step naturally
             if (currentStep === 1) {
                 navigateStep(1);
+            }
+        }
+
+        function loadGameState() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('mvp-game-state') || 'null');
+                if (!saved) return;
+                if (saved.db) db = saved.db;
+                if (typeof saved.currentActiveWeaponId === 'number') currentActiveWeaponId = saved.currentActiveWeaponId;
+                if (saved.playerStats) playerStats = { ...playerStats, ...saved.playerStats };
+                if (saved.selectedDifficulty) selectedDifficulty = saved.selectedDifficulty;
+                if (saved.currentUser) currentUser = saved.currentUser;
+            } catch (error) {
+                console.warn('無法恢復本地遊戲狀態', error);
+            }
+        }
+
+        function saveGameState() {
+            const snapshot = {
+                db,
+                currentActiveWeaponId,
+                selectedDifficulty,
+                playerStats,
+                currentUser
+            };
+            localStorage.setItem('mvp-game-state', JSON.stringify(snapshot));
+        }
+
+        function renderDifficultyButtons() {
+            ['easy', 'normal', 'hard'].forEach(key => {
+                const btn = document.getElementById(`difficulty-${key}`);
+                if (!btn) return;
+                btn.className = key === selectedDifficulty
+                    ? 'px-2.5 py-1.5 rounded border border-amber-500/40 bg-amber-500/10 text-[11px] font-bold text-amber-300 transition'
+                    : 'px-2.5 py-1.5 rounded border border-slate-700 text-[11px] font-medium text-slate-300 hover:border-amber-500 hover:text-amber-300 transition';
+            });
+            const label = document.getElementById('difficulty-mode-label');
+            if (label) {
+                label.innerText = `${difficultyConfig[selectedDifficulty].label}難度`;
+            }
+        }
+
+        function setDifficulty(mode) {
+            selectedDifficulty = mode;
+            renderDifficultyButtons();
+            saveGameState();
+            logApi('CLIENT', '/ui/difficulty', '200 OK', `Mode: ${difficultyConfig[mode].label}`);
+        }
+
+        function toggleAutoFire() {
+            playerStats.autoFire = !playerStats.autoFire;
+            if (playerStats.autoFire) startAutoFire(); else stopAutoFire();
+            renderBattleMeta();
+            saveGameState();
+        }
+
+        function startAutoFire() {
+            stopAutoFire();
+            if (document.getElementById('screen-battle').classList.contains('hidden')) return;
+            autoFireTimer = setInterval(() => {
+                if (document.getElementById('screen-battle').classList.contains('hidden') || document.getElementById('modal-settlement').classList.contains('hidden')) {
+                    stopAutoFire();
+                    return;
+                }
+                fireActiveWeapon();
+            }, 520);
+        }
+
+        function stopAutoFire() {
+            if (autoFireTimer) {
+                clearInterval(autoFireTimer);
+                autoFireTimer = null;
+            }
+        }
+
+        function renderBattleMeta() {
+            const scoreEl = document.getElementById('battle-score');
+            const comboEl = document.getElementById('battle-combo');
+            const accuracyEl = document.getElementById('battle-accuracy');
+            const autoBtn = document.getElementById('btn-auto-fire');
+            if (scoreEl) scoreEl.innerText = battleState.score;
+            if (comboEl) comboEl.innerText = `${battleState.combo}x`;
+            if (accuracyEl) {
+                const accuracy = battleState.shotsFired ? Math.round((battleState.hits / battleState.shotsFired) * 100) : 0;
+                accuracyEl.innerText = `${accuracy}%`;
+            }
+            if (autoBtn) {
+                autoBtn.innerText = playerStats.autoFire ? '自動連射: 開' : '自動連射: 關';
+            }
+        }
+
+        function resetBattleStats() {
+            battleState.score = 0;
+            battleState.combo = 0;
+            battleState.shotsFired = 0;
+            battleState.hits = 0;
+            renderBattleMeta();
+        }
+
+        function updateBattleStatsUI() {
+            renderBattleMeta();
+        }
+
+        function handleKeyboardShortcuts(event) {
+            const tagName = document.activeElement?.tagName;
+            if (tagName === 'INPUT' || tagName === 'TEXTAREA') return;
+
+            if (event.code === 'Space') {
+                event.preventDefault();
+                if (!document.getElementById('screen-battle').classList.contains('hidden')) {
+                    fireActiveWeapon();
+                }
+            } else if (event.key >= '1' && event.key <= '4') {
+                const weaponId = Number(event.key);
+                if (db.weapons.some(w => w.id === weaponId)) {
+                    setActiveWeapon(weaponId);
+                }
+            } else if (event.key === 'Escape') {
+                quitBattle();
             }
         }
 
@@ -640,19 +822,23 @@
             battleState.bossMonster = boss;
             battleState.killsCount = 0;
             battleState.isBossPhase = false;
-            battleState.currentEnemyMaxHp = Math.round(boss.hp * 0.2); // generic small minion hp is 20% of boss
+            const difficultyMultiplier = difficultyConfig[selectedDifficulty]?.multiplier || 1;
+            battleState.currentEnemyMaxHp = Math.round(Math.max(80, boss.hp * 0.2 * difficultyMultiplier));
             battleState.currentEnemyHp = battleState.currentEnemyMaxHp;
             battleState.startTime = new Date();
+            resetBattleStats();
 
             // Set up UI components
-            document.getElementById('screen-lobby').map || document.getElementById('screen-lobby').classList.add('hidden');
+            document.getElementById('screen-lobby').classList.add('hidden');
             document.getElementById('screen-battle').classList.remove('hidden');
+            document.getElementById('modal-settlement').classList.add('hidden');
 
             document.getElementById('battle-stage-title').innerText = `關卡 ${stage.stage_no}: ${stage.stage_name}`;
             document.getElementById('battle-weapon-name').innerText = activeWeapon.name;
             document.getElementById('battle-weapon-level').innerText = activeWeapon.level;
             
             setupEnemyPhaseUI();
+            renderBattleMeta();
             
             logApi('GET', `/api/stages`, '200 OK', `Loaded active details for Stage: ${stage.stage_name}`);
             
@@ -689,8 +875,12 @@
         }
 
         function fireActiveWeapon() {
+            if (!battleState.stage || document.getElementById('screen-battle').classList.contains('hidden')) return;
+
             const activeWeapon = db.weapons.find(w => w.id === currentActiveWeaponId);
             const dmg = activeWeapon.damage;
+            const beforeHp = battleState.currentEnemyHp;
+            const wasAlive = beforeHp > 0;
             
             // Reduce Enemy HP
             battleState.currentEnemyHp -= dmg;
@@ -703,6 +893,22 @@
 
             // Spawn floating floating damage indicator text numbers
             spawnDamageText(dmg);
+
+            if (wasAlive) {
+                battleState.shotsFired += 1;
+                battleState.hits += 1;
+                battleState.combo += 1;
+                battleState.score += 120 + battleState.combo * 25;
+                playerStats.shotsFired += 1;
+                playerStats.hits += 1;
+                playerStats.score += 120 + battleState.combo * 25;
+                playerStats.maxCombo = Math.max(playerStats.maxCombo || 0, battleState.combo);
+            } else {
+                battleState.shotsFired += 1;
+                playerStats.shotsFired += 1;
+            }
+
+            updateBattleStatsUI();
             
             // Check health rules
             if (battleState.currentEnemyHp <= 0) {
@@ -766,11 +972,14 @@
 
             // Generate rewards based on stage difficulty
             const goldReward = battleState.stage.difficulty * 200;
+            const accuracy = battleState.shotsFired ? Math.round((battleState.hits / battleState.shotsFired) * 100) : 0;
 
             // Update DOM text
             document.getElementById('settle-stage-name').innerText = `關卡 ${battleState.stage.stage_no}: ${battleState.stage.stage_name}`;
             document.getElementById('settle-time-val').innerText = durationSec;
             document.getElementById('settle-gold-reward').innerText = goldReward;
+            document.getElementById('settle-score-val').innerText = `${battleState.score} pts`;
+            document.getElementById('settle-accuracy-val').innerText = `${accuracy}%`;
 
             const starsRow = document.getElementById('settle-stars-row');
             starsRow.innerHTML = '';
@@ -797,6 +1006,7 @@
 
             // Add gold bounty
             player.gold += battleState.goldReward;
+            player.best_score = Math.max(player.best_score || 0, battleState.score);
             document.getElementById('player-gold').innerText = player.gold;
 
             // Save persistent relational state metrics back to database mock storage row
@@ -818,12 +1028,14 @@
                 cleared: 1,
                 star: battleState.calculatedStars,
                 elapsed_seconds: battleState.durationSec,
-                awarded_gold: battleState.goldReward
+                awarded_gold: battleState.goldReward,
+                score: battleState.score
             };
             
             logApi('POST', '/api/progress/save', '200 OK', JSON.stringify(savePayload));
 
             // Clean up view states
+            stopAutoFire();
             document.getElementById('modal-settlement').classList.add('hidden');
             document.getElementById('screen-battle').classList.add('hidden');
             document.getElementById('screen-lobby').classList.remove('hidden');
@@ -831,6 +1043,7 @@
             // Refresh UI grids
             renderStages();
             renderDbTable();
+            saveGameState();
 
             if (currentStep === 4) {
                 navigateStep(1);
@@ -838,10 +1051,12 @@
         }
 
         function quitBattle() {
+            stopAutoFire();
             logApi('ACTION', 'Player aborted combat campaign.', 'CLIENT');
             document.getElementById('screen-battle').classList.add('hidden');
             document.getElementById('screen-lobby').classList.remove('hidden');
             renderStages();
+            renderBattleMeta();
         }
 
         // ----------------------------------------------------
