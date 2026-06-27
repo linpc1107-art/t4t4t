@@ -49,6 +49,18 @@
         .attack-flash {
             animation: attackFlash 0.25s ease-out;
         }
+        .attack-recoil {
+            animation: attackRecoil 0.12s ease-out;
+        }
+        .muzzle-flash {
+            animation: muzzleFlash 0.12s ease-out;
+        }
+        .enemy-hit-pulse {
+            animation: enemyHitPulse 0.16s ease-out;
+        }
+        .battle-screen-shake {
+            animation: battleScreenShake 0.16s ease-out;
+        }
         .battle-alert-pop {
             animation: alertPulse 0.8s ease-in-out;
         }
@@ -68,6 +80,27 @@
             0% { box-shadow: inset 0 0 0 rgba(255,255,255,0); }
             50% { box-shadow: inset 0 0 40px rgba(248,113,113,0.25); }
             100% { box-shadow: inset 0 0 0 rgba(255,255,255,0); }
+        }
+        @keyframes attackRecoil {
+            0% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(3px) scale(0.98); }
+            100% { transform: translateY(0) scale(1); }
+        }
+        @keyframes muzzleFlash {
+            0% { opacity: 0; transform: scale(0.85); }
+            50% { opacity: 0.9; transform: scale(1.05); }
+            100% { opacity: 0; transform: scale(1.2); }
+        }
+        @keyframes enemyHitPulse {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(0.94); filter: brightness(1.35) drop-shadow(0 0 24px rgba(248,113,113,0.8)); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+        @keyframes battleScreenShake {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(-2px, 1px); }
+            50% { transform: translate(2px, -1px); }
+            75% { transform: translate(-1px, 2px); }
         }
         @keyframes alertPulse {
             0% { transform: scale(0.96); opacity: 0.75; }
@@ -334,9 +367,11 @@
 
                         <!-- BIG INTERACTIVE FIRE BUTTON -->
                         <div class="flex items-center gap-3">
-                            <button id="btn-fire-weapon" onclick="fireActiveWeapon()" class="bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-black text-base px-8 py-3 rounded-xl shadow-lg transition transform active:scale-95 flex items-center gap-2 relative">
-                                <i class="fas fa-crosshairs animate-spin-slow"></i> 擊發武器攻擊
-                                <span class="absolute -top-2 -right-2 bg-amber-400 text-slate-950 text-[10px] px-1 rounded-full font-bold animate-bounce">TAP!</span>
+                            <button id="btn-fire-weapon" onclick="fireActiveWeapon()" class="bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-black text-base px-8 py-3 rounded-xl shadow-lg transition transform active:scale-95 flex items-center gap-2 relative overflow-hidden">
+                                <span id="fire-muzzle-flash" class="absolute inset-0 rounded-xl bg-white/30 opacity-0 pointer-events-none"></span>
+                                <i class="fas fa-crosshairs animate-spin-slow relative z-10"></i>
+                                <span class="relative z-10">擊發武器攻擊</span>
+                                <span class="absolute -top-2 -right-2 bg-amber-400 text-slate-950 text-[10px] px-1 rounded-full font-bold animate-bounce">SPACE</span>
                             </button>
                         </div>
                     </div>
@@ -547,6 +582,10 @@
         let selectedDifficulty = 'normal';
         let autoFireTimer = null;
         let enemyAttackTimer = null;
+        let holdFireTimer = null;
+        let spaceFireActive = false;
+        let lastAttackTime = 0;
+        let attackAudioCtx = null;
         let playerHealth = 100;
         let maxPlayerHealth = 100;
         let playerStats = {
@@ -630,6 +669,7 @@
             renderBattleMeta();
             renderLobbySummary();
             document.addEventListener('keydown', handleKeyboardShortcuts);
+            document.addEventListener('keyup', handleKeyboardShortcuts);
             logApi('SYSTEM', 'MVP Front-end Emulator Engine started successfully.', 'READY');
         };
 
@@ -819,16 +859,46 @@
 
             if (event.code === 'Space') {
                 event.preventDefault();
-                if (!document.getElementById('screen-battle').classList.contains('hidden')) {
-                    fireActiveWeapon();
+                if (event.type === 'keydown') {
+                    if (!document.getElementById('screen-battle').classList.contains('hidden')) {
+                        if (!spaceFireActive) {
+                            spaceFireActive = true;
+                            fireActiveWeapon();
+                        }
+                        startSpaceHoldFire();
+                    }
+                } else if (event.type === 'keyup') {
+                    stopSpaceHoldFire();
                 }
-            } else if (event.key >= '1' && event.key <= '4') {
+            } else if (event.type === 'keydown' && event.key >= '1' && event.key <= '4') {
                 const weaponId = Number(event.key);
                 if (db.weapons.some(w => w.id === weaponId)) {
                     setActiveWeapon(weaponId);
                 }
-            } else if (event.key === 'Escape') {
+            } else if (event.type === 'keydown' && event.key === 'Escape') {
                 quitBattle();
+            }
+        }
+
+        function startSpaceHoldFire() {
+            stopSpaceHoldFire();
+            if (document.getElementById('screen-battle').classList.contains('hidden')) return;
+            const activeWeapon = db.weapons.find(w => w.id === currentActiveWeaponId);
+            const intervalMs = Math.max(90, Math.round((activeWeapon?.fire_rate || 0.35) * 800));
+            holdFireTimer = setInterval(() => {
+                if (!spaceFireActive || document.getElementById('screen-battle').classList.contains('hidden')) {
+                    stopSpaceHoldFire();
+                    return;
+                }
+                fireActiveWeapon();
+            }, intervalMs);
+        }
+
+        function stopSpaceHoldFire() {
+            spaceFireActive = false;
+            if (holdFireTimer) {
+                clearInterval(holdFireTimer);
+                holdFireTimer = null;
             }
         }
 
@@ -1012,9 +1082,22 @@
         }
 
         function fireActiveWeapon() {
-            if (!battleState.stage || document.getElementById('screen-battle').classList.contains('hidden')) return;
+            if (!battleState.stage || document.getElementById('screen-battle').classList.contains('hidden')) return false;
 
             const activeWeapon = db.weapons.find(w => w.id === currentActiveWeaponId);
+            const now = performance.now();
+            const cooldownMs = Math.max(110, Math.round((activeWeapon?.fire_rate || 0.35) * 1000));
+            if (now - lastAttackTime < cooldownMs) {
+                const button = document.getElementById('btn-fire-weapon');
+                if (button) {
+                    button.classList.remove('attack-recoil');
+                    void button.offsetWidth;
+                    button.classList.add('attack-recoil');
+                }
+                return false;
+            }
+            lastAttackTime = now;
+
             const dmg = activeWeapon.damage;
             const beforeHp = battleState.currentEnemyHp;
             const wasAlive = beforeHp > 0;
@@ -1023,14 +1106,7 @@
             battleState.currentEnemyHp -= dmg;
             if (battleState.currentEnemyHp < 0) battleState.currentEnemyHp = 0;
 
-            // Trigger visual hit scaling feedback
-            const enemySprite = document.getElementById('enemy-sprite-node');
-            enemySprite.classList.add('scale-90', 'brightness-125');
-            setTimeout(() => enemySprite.classList.remove('scale-90', 'brightness-125'), 80);
-            const arena = document.querySelector('.game-canvas');
-            arena.classList.remove('attack-flash');
-            void arena.offsetWidth;
-            arena.classList.add('attack-flash');
+            triggerAttackFeedback();
 
             // Spawn floating floating damage indicator text numbers
             spawnDamageText(dmg);
@@ -1058,6 +1134,64 @@
                 handleEnemyDeath();
             } else {
                 setupEnemyPhaseUI();
+            }
+            return true;
+        }
+
+        function triggerAttackFeedback() {
+            const enemySprite = document.getElementById('enemy-sprite-node');
+            const arena = document.querySelector('.game-canvas');
+            const button = document.getElementById('btn-fire-weapon');
+            const flash = document.getElementById('fire-muzzle-flash');
+
+            if (enemySprite) {
+                enemySprite.classList.remove('enemy-hit-pulse');
+                void enemySprite.offsetWidth;
+                enemySprite.classList.add('enemy-hit-pulse');
+            }
+            if (arena) {
+                arena.classList.remove('attack-flash', 'battle-screen-shake');
+                void arena.offsetWidth;
+                arena.classList.add('attack-flash', 'battle-screen-shake');
+            }
+            if (button) {
+                button.classList.remove('attack-recoil');
+                void button.offsetWidth;
+                button.classList.add('attack-recoil');
+            }
+            if (flash) {
+                flash.classList.remove('muzzle-flash');
+                void flash.offsetWidth;
+                flash.classList.add('muzzle-flash');
+            }
+            playAttackSfx();
+
+            setTimeout(() => {
+                if (enemySprite) enemySprite.classList.remove('enemy-hit-pulse');
+                if (button) button.classList.remove('attack-recoil');
+                if (flash) flash.classList.remove('muzzle-flash');
+            }, 160);
+        }
+
+        function playAttackSfx() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                if (!attackAudioCtx) attackAudioCtx = new AudioCtx();
+                if (attackAudioCtx.state === 'suspended') attackAudioCtx.resume();
+
+                const osc = attackAudioCtx.createOscillator();
+                const gain = attackAudioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(780, attackAudioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(180, attackAudioCtx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.04, attackAudioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, attackAudioCtx.currentTime + 0.14);
+                osc.connect(gain).connect(attackAudioCtx.destination);
+                osc.start();
+                osc.stop(attackAudioCtx.currentTime + 0.14);
+            } catch (error) {
+                console.warn('音效初始化失敗', error);
             }
         }
 
@@ -1141,9 +1275,9 @@
             playerHealth = Math.max(0, playerHealth - damage);
             showBattleAlert(`怪物反擊！損失 ${damage} 血量`);
             const arena = document.querySelector('.game-canvas');
-            arena.classList.remove('attack-flash');
+            arena.classList.remove('attack-flash', 'battle-screen-shake');
             void arena.offsetWidth;
-            arena.classList.add('attack-flash');
+            arena.classList.add('attack-flash', 'battle-screen-shake');
             renderBattleMeta();
             if (playerHealth <= 0) {
                 triggerDefeatScreen();
